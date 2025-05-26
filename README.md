@@ -2,6 +2,33 @@
 
 This project demonstrates Azure Site Recovery (ASR) implementation with Customer-Managed Key (CMK) encryption using Pulumi and TypeScript. It provides a complete proof-of-concept for disaster recovery scenarios where virtual machines with CMK-encrypted disks need to be replicated across Azure regions.
 
+- [Azure Site Recovery with Customer-Managed Keys (CMK) - POC](#azure-site-recovery-with-customer-managed-keys-cmk---poc)
+   - [🎯 Project Overview](#-project-overview)
+   - [📋 Prerequisites](#-prerequisites)
+      - [Required Tools](#required-tools)
+      - [Azure Requirements](#azure-requirements)
+   - [🚀 Getting Started](#-getting-started)
+      - [Setup Pulumi Backend](#setup-pulumi-backend)
+      - [What the Backend Setup Provides](#what-the-backend-setup-provides)
+      - [Validation Features](#validation-features)
+      - [Pulumi Configuration](#pulumi-configuration)
+         - [Configuration File Setup](#configuration-file-setup)
+         - [Required Configuration Values](#required-configuration-values)
+         - [Setting Configuration Values](#setting-configuration-values)
+   - [🏗️ Deployment](#️-deployment)
+      - [Step 1: Deploy Infrastructure with Pulumi](#step-1-deploy-infrastructure-with-pulumi)
+      - [Step 2: Enable ASR Replication with CMK (Azure Portal)](#step-2-enable-asr-replication-with-cmk-azure-portal)
+         - [Azure Portal Steps:](#azure-portal-steps)
+         - [Verification Steps:](#verification-steps)
+   - [📚 Reference Documentation](#-reference-documentation)
+   - [🧹 Cleanup](#-cleanup)
+      - [Step 1: Clean up ASR Protected Items and Mappings (if any exist)](#step-1-clean-up-asr-protected-items-and-mappings-if-any-exist)
+         - [Check and Remove Protected Items](#check-and-remove-protected-items)
+         - [Check and Remove Protection Container Mappings](#check-and-remove-protection-container-mappings)
+         - [Common Mapping Names](#common-mapping-names)
+         - [Troubleshooting Tips](#troubleshooting-tips)
+      - [Step 2: Destroy Pulumi Infrastructure](#step-2-destroy-pulumi-infrastructure)
+
 ## 🎯 Project Overview
 
 This POC provides the foundation for implementing:
