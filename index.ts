@@ -363,6 +363,91 @@ export const asrCacheStorageAccountId = asrCacheStorageAccount.id;
 export const asrReplicationPolicyName = asrReplicationPolicy.name;
 export const asrReplicationPolicyId = asrReplicationPolicy.id;
 
+// =============================================================================
+// Phase 4: Source Virtual Machine with CMK Encryption
+// =============================================================================
+
+// 14. Create Network Interface (NIC) for Source VM
+const sourceVmNic = new network.NetworkInterface("sourceVmNic", {
+    networkInterfaceName: `${sourceVmName}-nic`,
+    resourceGroupName: sourceResourceGroup.name,
+    location: location,
+    ipConfigurations: [{
+        name: "ipconfig1",
+        subnet: {
+            id: sourceSubnet.id,
+        },
+        privateIPAllocationMethod: "Dynamic",
+    }],
+});
+
+// 15. Create Source Virtual Machine with CMK-Encrypted Disks
+const sourceVm = new compute.VirtualMachine("sourceVm", {
+    vmName: sourceVmName,
+    resourceGroupName: sourceResourceGroup.name,
+    location: location,
+    hardwareProfile: {
+        vmSize: vmSize,
+    },
+    storageProfile: {
+        imageReference: {
+            publisher: sourceVmImagePublisher,
+            offer: sourceVmImageOffer,
+            sku: sourceVmImageSku,
+            version: sourceVmImageVersion,
+        },
+        osDisk: {
+            name: `${sourceVmName}-osdisk`,
+            createOption: "FromImage",
+            diskSizeGB: 30,
+            managedDisk: {
+                storageAccountType: "Standard_LRS",
+                diskEncryptionSet: {
+                    id: sourceDiskEncryptionSet.id,
+                },
+            },
+        },
+        dataDisks: [{
+            name: `${sourceVmName}-datadisk-01`,
+            createOption: "Empty",
+            diskSizeGB: 32,
+            lun: 0,
+            managedDisk: {
+                storageAccountType: "Standard_LRS",
+                diskEncryptionSet: {
+                    id: sourceDiskEncryptionSet.id,
+                },
+            },
+        }],
+    },
+    osProfile: {
+        computerName: sourceVmName,
+        adminUsername: vmAdminUsername,
+        adminPassword: vmAdminPassword,
+        linuxConfiguration: {
+            disablePasswordAuthentication: false,
+        },
+    },
+    networkProfile: {
+        networkInterfaces: [{
+            id: sourceVmNic.id,
+        }],
+    },
+}, {
+    dependsOn: [sourceKeyVaultAccessPolicy], // Ensure DES has access to Key Vault
+});
+
+// =============================================================================
+// Phase 4 Exports
+// =============================================================================
+
+export const sourceVmNicName = sourceVmNic.name;
+export const sourceVmNicId = sourceVmNic.id;
+export const sourceVmName_export = sourceVm.name;
+export const sourceVmId = sourceVm.id;
+export const sourceVmOsDiskName = pulumi.interpolate`${sourceVmName}-osdisk`;
+export const sourceVmDataDiskName = pulumi.interpolate`${sourceVmName}-datadisk-01`;
+
 // Configuration exports for reference
 export const configSummary = {
     sourceLocation: location,
