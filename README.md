@@ -35,6 +35,12 @@ cd poc-asr-cmk
 # Setup automated Pulumi backend with Azure Blob Storage
 ./setup-pulumi-backend.sh
 
+# Export the storage account name for reference (replace with actual value from setup output)
+export AZURE_STORAGE_ACCOUNT="pulumistatecmk<unique_suffix>"
+
+# Login to Pulumi backend (automatically done by setup script, but can be run manually)
+pulumi login azblob://pulumi-backend-cmk
+
 # Validate setup and CMK prerequisites
 ./validate-backend.sh
 ```
