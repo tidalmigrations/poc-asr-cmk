@@ -114,6 +114,160 @@ const targetSubnet = new network.Subnet("targetSubnet", {
 });
 
 // =============================================================================
+// Phase 2: Customer-Managed Key Infrastructure (CMK Prerequisites)
+// =============================================================================
+
+// 6. Create Source Key Vault
+
+// Source Azure Key Vault
+const sourceKeyVault = new keyvault.Vault("sourceKeyVault", {
+    vaultName: `${keyVaultNamePrefix}-source-${uniqueSuffix}`,
+    resourceGroupName: sourceResourceGroup.name,
+    location: location,
+    properties: {
+        sku: {
+            family: "A",
+            name: "standard",
+        },
+        tenantId: clientConfig.then(config => config.tenantId),
+        enableSoftDelete: true,
+        enablePurgeProtection: true,
+        enabledForDiskEncryption: true,
+        accessPolicies: [
+            {
+                tenantId: clientConfig.then(config => config.tenantId),
+                objectId: clientConfig.then(config => config.objectId),
+                permissions: {
+                    keys: ["get", "list", "create", "delete", "update", "wrapKey", "unwrapKey", "encrypt", "decrypt"],
+                    secrets: ["get", "list", "set", "delete"],
+                    certificates: ["get", "list", "create", "delete", "update"],
+                },
+            },
+        ],
+    },
+});
+
+// 7. Create Target Key Vault
+
+// Target Azure Key Vault
+const targetKeyVault = new keyvault.Vault("targetKeyVault", {
+    vaultName: `${keyVaultNamePrefix}-target-${uniqueSuffix}`,
+    resourceGroupName: targetResourceGroup.name,
+    location: targetLocation,
+    properties: {
+        sku: {
+            family: "A",
+            name: "standard",
+        },
+        tenantId: clientConfig.then(config => config.tenantId),
+        enableSoftDelete: true,
+        enablePurgeProtection: true,
+        enabledForDiskEncryption: true,
+        accessPolicies: [
+            {
+                tenantId: clientConfig.then(config => config.tenantId),
+                objectId: clientConfig.then(config => config.objectId),
+                permissions: {
+                    keys: ["get", "list", "create", "delete", "update", "wrapKey", "unwrapKey", "encrypt", "decrypt"],
+                    secrets: ["get", "list", "set", "delete"],
+                    certificates: ["get", "list", "create", "delete", "update"],
+                },
+            },
+        ],
+    },
+});
+
+// 8. Create Encryption Keys
+
+// Source Encryption Key
+const sourceEncryptionKey = new keyvault.Key("sourceEncryptionKey", {
+    keyName: sourceKeyName,
+    resourceGroupName: sourceResourceGroup.name,
+    vaultName: sourceKeyVault.name,
+    properties: {
+        kty: "RSA",
+        keySize: 2048,
+        keyOps: ["encrypt", "decrypt", "wrapKey", "unwrapKey"],
+    },
+});
+
+// Target Encryption Key
+const targetEncryptionKey = new keyvault.Key("targetEncryptionKey", {
+    keyName: targetKeyName,
+    resourceGroupName: targetResourceGroup.name,
+    vaultName: targetKeyVault.name,
+    properties: {
+        kty: "RSA",
+        keySize: 2048,
+        keyOps: ["encrypt", "decrypt", "wrapKey", "unwrapKey"],
+    },
+});
+
+// 9. Create Disk Encryption Sets
+
+// Source Disk Encryption Set (DES)
+const sourceDiskEncryptionSet = new compute.DiskEncryptionSet("sourceDiskEncryptionSet", {
+    diskEncryptionSetName: `${resourceGroupNamePrefix}-source-des`,
+    resourceGroupName: sourceResourceGroup.name,
+    location: location,
+    identity: {
+        type: "SystemAssigned",
+    },
+    activeKey: {
+        sourceVault: {
+            id: sourceKeyVault.id,
+        },
+        keyUrl: sourceEncryptionKey.keyUriWithVersion,
+    },
+    encryptionType: "EncryptionAtRestWithCustomerKey",
+});
+
+// Target Disk Encryption Set (DES)
+const targetDiskEncryptionSet = new compute.DiskEncryptionSet("targetDiskEncryptionSet", {
+    diskEncryptionSetName: `${resourceGroupNamePrefix}-target-des`,
+    resourceGroupName: targetResourceGroup.name,
+    location: targetLocation,
+    identity: {
+        type: "SystemAssigned",
+    },
+    activeKey: {
+        sourceVault: {
+            id: targetKeyVault.id,
+        },
+        keyUrl: targetEncryptionKey.keyUriWithVersion,
+    },
+    encryptionType: "EncryptionAtRestWithCustomerKey",
+});
+
+// 10. Configure Key Vault Access Policies for DES
+
+// Source Key Vault Access Policy for Source DES
+const sourceKeyVaultAccessPolicy = new keyvault.AccessPolicy("sourceKeyVaultAccessPolicy", {
+    resourceGroupName: sourceResourceGroup.name,
+    vaultName: sourceKeyVault.name,
+    policy: {
+        tenantId: clientConfig.then(config => config.tenantId),
+        objectId: sourceDiskEncryptionSet.identity.apply(identity => identity!.principalId!),
+        permissions: {
+            keys: ["get", "wrapKey", "unwrapKey"],
+        },
+    },
+});
+
+// Target Key Vault Access Policy for Target DES
+const targetKeyVaultAccessPolicy = new keyvault.AccessPolicy("targetKeyVaultAccessPolicy", {
+    resourceGroupName: targetResourceGroup.name,
+    vaultName: targetKeyVault.name,
+    policy: {
+        tenantId: clientConfig.then(config => config.tenantId),
+        objectId: targetDiskEncryptionSet.identity.apply(identity => identity!.principalId!),
+        permissions: {
+            keys: ["get", "wrapKey", "unwrapKey"],
+        },
+    },
+});
+
+// =============================================================================
 // Export Phase 1 Resources
 // =============================================================================
 
@@ -133,6 +287,26 @@ export const targetVNetName = targetVNet.name;
 export const targetVNetId = targetVNet.id;
 export const targetSubnetName = targetSubnet.name;
 export const targetSubnetId = targetSubnet.id;
+
+// Phase 2 CMK Infrastructure Exports
+export const sourceKeyVaultName = sourceKeyVault.name;
+export const sourceKeyVaultId = sourceKeyVault.id;
+export const targetKeyVaultName = targetKeyVault.name;
+export const targetKeyVaultId = targetKeyVault.id;
+
+export const sourceEncryptionKeyName = sourceEncryptionKey.name;
+export const sourceEncryptionKeyId = sourceEncryptionKey.id;
+export const sourceEncryptionKeyUrl = sourceEncryptionKey.keyUriWithVersion;
+export const targetEncryptionKeyName = targetEncryptionKey.name;
+export const targetEncryptionKeyId = targetEncryptionKey.id;
+export const targetEncryptionKeyUrl = targetEncryptionKey.keyUriWithVersion;
+
+export const sourceDiskEncryptionSetName = sourceDiskEncryptionSet.name;
+export const sourceDiskEncryptionSetId = sourceDiskEncryptionSet.id;
+export const sourceDiskEncryptionSetPrincipalId = sourceDiskEncryptionSet.identity.apply(identity => identity!.principalId!);
+export const targetDiskEncryptionSetName = targetDiskEncryptionSet.name;
+export const targetDiskEncryptionSetId = targetDiskEncryptionSet.id;
+export const targetDiskEncryptionSetPrincipalId = targetDiskEncryptionSet.identity.apply(identity => identity!.principalId!);
 
 // Configuration exports for reference
 export const configSummary = {
