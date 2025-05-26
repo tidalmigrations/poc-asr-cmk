@@ -308,6 +308,61 @@ export const targetDiskEncryptionSetName = targetDiskEncryptionSet.name;
 export const targetDiskEncryptionSetId = targetDiskEncryptionSet.id;
 export const targetDiskEncryptionSetPrincipalId = targetDiskEncryptionSet.identity.apply(identity => identity!.principalId!);
 
+// =============================================================================
+// Phase 3: Recovery Services Vault & ASR Primitives
+// =============================================================================
+
+// 11. Create Recovery Services Vault (RSV)
+const recoveryServicesVault = new recoveryservices.Vault("recoveryServicesVault", {
+    vaultName: `${resourceGroupNamePrefix}-rsv`,
+    resourceGroupName: recoveryResourceGroup.name,
+    location: recoveryResourceGroup.location,
+    sku: {
+        name: "Standard",
+    },
+    properties: {
+        publicNetworkAccess: "Enabled",
+    },
+});
+
+// 12. (Optional but Recommended) Create ASR Cache Storage Account
+const asrCacheStorageAccount = new storage.StorageAccount("asrCacheStorageAccount", {
+    accountName: `asr${resourceGroupNamePrefix.toLowerCase().replace(/-/g, "")}cache`,
+    resourceGroupName: sourceResourceGroup.name,
+    location: location,
+    sku: {
+        name: "Standard_LRS",
+    },
+    kind: "StorageV2",
+});
+
+// 13. Define ASR Replication Policy
+const asrReplicationPolicy = new recoveryservices.ReplicationPolicy("asrReplicationPolicy", {
+    policyName: "asr-cmk-policy",
+    resourceGroupName: recoveryResourceGroup.name,
+    resourceName: recoveryServicesVault.name,
+    properties: {
+        providerSpecificInput: {
+            instanceType: "A2A",
+            multiVmSyncStatus: "Enable",
+            appConsistentFrequencyInMinutes: 240, // 4 hours * 60 minutes
+            crashConsistentFrequencyInMinutes: 5, // 5 minutes for crash-consistent snapshots
+            recoveryPointHistory: 1440, // 24 hours * 60 minutes
+        },
+    },
+});
+
+// =============================================================================
+// Phase 3 Exports
+// =============================================================================
+
+export const recoveryServicesVaultName = recoveryServicesVault.name;
+export const recoveryServicesVaultId = recoveryServicesVault.id;
+export const asrCacheStorageAccountName = asrCacheStorageAccount.name;
+export const asrCacheStorageAccountId = asrCacheStorageAccount.id;
+export const asrReplicationPolicyName = asrReplicationPolicy.name;
+export const asrReplicationPolicyId = asrReplicationPolicy.id;
+
 // Configuration exports for reference
 export const configSummary = {
     sourceLocation: location,
