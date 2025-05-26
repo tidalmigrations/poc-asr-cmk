@@ -252,6 +252,30 @@ After enabling replication:
 
 To remove all resources:
 
+### Step 1: Clean up ASR Protected Items (if any exist)
+
+If you encounter "Configuration settings couldn't be removed" error during destroy:
+
+```bash
+# Check for protected items
+az site-recovery protected-item list \
+  --vault-name "cmkAsrPoc-rsv" \
+  --resource-group "cmkAsrPoc-recovery-rg" \
+  --fabric-name "azure-eastus" \
+  --protection-container "asr-a2a-default-eastus-container" \
+  --output table
+
+# If protected items exist, force delete them (replace <ITEM_NAME> with actual name)
+az site-recovery protected-item delete \
+  --vault-name "cmkAsrPoc-rsv" \
+  --resource-group "cmkAsrPoc-recovery-rg" \
+  --fabric-name "azure-eastus" \
+  --protection-container "asr-a2a-default-eastus-container" \
+  --name "<ITEM_NAME>"
+```
+
+### Step 2: Destroy Pulumi Infrastructure
+
 ```bash
 # Destroy Pulumi infrastructure
 pulumi destroy
@@ -261,4 +285,4 @@ pulumi destroy
 az group delete --name pulumi-state-cmk-rg --yes
 ```
 
-**Note**: Ensure ASR replication is disabled before destroying resources to avoid dependency issues.
+**Note**: Always disable ASR replication before destroying resources to avoid dependency issues.
