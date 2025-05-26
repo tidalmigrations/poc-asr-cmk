@@ -6,6 +6,7 @@ import * as compute from "@pulumi/azure-native/compute";
 import * as recoveryservices from "@pulumi/azure-native/recoveryservices";
 import * as storage from "@pulumi/azure-native/storage";
 import * as authorization from "@pulumi/azure-native/authorization";
+import * as command from "@pulumi/command";
 
 // Azure Site Recovery with Customer-Managed Keys (CMK) POC
 // 
@@ -448,6 +449,84 @@ export const sourceVmId = sourceVm.id;
 export const sourceVmOsDiskName = pulumi.interpolate`${sourceVmName}-osdisk`;
 export const sourceVmDataDiskName = pulumi.interpolate`${sourceVmName}-datadisk-01`;
 
+// =============================================================================
+// Phase 5: ASR Configuration for CMK-Encrypted VM Replication (Azure-to-Azure)
+// =============================================================================
+
+// 16. Create ASR Fabric (Azure) - Source Fabric
+const sourceFabric = new recoveryservices.ReplicationFabric("sourceFabric", {
+    fabricName: `azure-${location}`,
+    resourceGroupName: recoveryResourceGroup.name,
+    resourceName: recoveryServicesVault.name,
+    properties: {
+        customDetails: {
+            instanceType: "Azure",
+            location: location,
+        },
+    },
+});
+
+// Create ASR Fabric (Azure) - Target Fabric
+const targetFabric = new recoveryservices.ReplicationFabric("targetFabric", {
+    fabricName: `azure-${targetLocation}`,
+    resourceGroupName: recoveryResourceGroup.name,
+    resourceName: recoveryServicesVault.name,
+    properties: {
+        customDetails: {
+            instanceType: "Azure",
+            location: targetLocation,
+        },
+    },
+});
+
+// 17. Create Protection Containers using Azure CLI (since they're not available in Pulumi Azure Native)
+const sourceProtectionContainer = new command.local.Command("sourceProtectionContainer", {
+    create: pulumi.interpolate`az site-recovery protection-container create --fabric-name ${sourceFabric.name} --vault-name ${recoveryServicesVault.name} --resource-group ${recoveryResourceGroup.name} --name asr-a2a-default-${location}-container --provider-input '[{instance-type:A2A}]'`,
+    delete: pulumi.interpolate`az site-recovery protection-container remove --fabric-name ${sourceFabric.name} --vault-name ${recoveryServicesVault.name} --resource-group ${recoveryResourceGroup.name} --protection-container-name asr-a2a-default-${location}-container || true`,
+}, {
+    dependsOn: [sourceFabric],
+});
+
+const targetProtectionContainer = new command.local.Command("targetProtectionContainer", {
+    create: pulumi.interpolate`az site-recovery protection-container create --fabric-name ${targetFabric.name} --vault-name ${recoveryServicesVault.name} --resource-group ${recoveryResourceGroup.name} --name asr-a2a-default-${targetLocation}-container --provider-input '[{instance-type:A2A}]'`,
+    delete: pulumi.interpolate`az site-recovery protection-container remove --fabric-name ${targetFabric.name} --vault-name ${recoveryServicesVault.name} --resource-group ${recoveryResourceGroup.name} --protection-container-name asr-a2a-default-${targetLocation}-container || true`,
+}, {
+    dependsOn: [targetFabric],
+});
+
+// 18. Create ASR Protection Container Mapping
+const protectionContainerMapping = new recoveryservices.ReplicationProtectionContainerMapping("protectionContainerMapping", {
+    mappingName: "asr-container-mapping",
+    resourceGroupName: recoveryResourceGroup.name,
+    resourceName: recoveryServicesVault.name,
+    fabricName: sourceFabric.name,
+    protectionContainerName: `asr-a2a-default-${location}-container`,
+    properties: {
+        targetProtectionContainerId: pulumi.interpolate`/subscriptions/${clientConfig.then(config => config.subscriptionId)}/resourceGroups/${recoveryResourceGroup.name}/providers/Microsoft.RecoveryServices/vaults/${recoveryServicesVault.name}/replicationFabrics/${targetFabric.name}/replicationProtectionContainers/asr-a2a-default-${targetLocation}-container`,
+        policyId: asrReplicationPolicy.id,
+        providerSpecificInput: {
+            instanceType: "A2A",
+        },
+    },
+}, {
+    dependsOn: [sourceProtectionContainer, targetProtectionContainer],
+});
+
+// 19. ASR Replication Configuration (Manual PowerShell Script)
+// Due to Pulumi Azure Native provider limitations with CMK disk encryption,
+// ASR replication must be configured manually using the PowerShell script below.
+
+// =============================================================================
+// Phase 5 Exports
+// =============================================================================
+
+export const sourceFabricName = sourceFabric.name;
+export const sourceFabricId = sourceFabric.id;
+export const targetFabricName = targetFabric.name;
+export const targetFabricId = targetFabric.id;
+export const protectionContainerMappingName = protectionContainerMapping.name;
+export const protectionContainerMappingId = protectionContainerMapping.id;
+
 // Configuration exports for reference
 export const configSummary = {
     sourceLocation: location,
@@ -457,3 +536,43 @@ export const configSummary = {
     keyVaultPrefix: keyVaultNamePrefix,
     uniqueSuffix: uniqueSuffix,
 };
+
+// =============================================================================
+// Additional Exports for Manual CMK Configuration
+// =============================================================================
+
+// PowerShell Configuration Helper Values
+export const cmkConfigurationHelpers = {
+    // Recovery Services Vault details for PowerShell
+    recoveryServicesVaultName: recoveryServicesVault.name,
+    recoveryServicesVaultResourceGroup: recoveryResourceGroup.name,
+    
+    // Source VM details
+    sourceVmName: sourceVmName,
+    sourceVmResourceGroup: sourceResourceGroup.name,
+    
+    // Target DES Resource ID for manual configuration
+    targetDiskEncryptionSetResourceId: targetDiskEncryptionSet.id,
+    
+    // Key Vault details
+    sourceKeyVaultName: sourceKeyVault.name,
+    targetKeyVaultName: targetKeyVault.name,
+    
+    // Fabric names for ASR PowerShell commands
+    sourceFabricName: sourceFabric.name,
+    targetFabricName: targetFabric.name,
+    
+    // Protection container names
+    sourceProtectionContainerName: `asr-a2a-default-${location}-container`,
+    targetProtectionContainerName: `asr-a2a-default-${targetLocation}-container`,
+    
+    // Cache storage account for ASR
+    cacheStorageAccountId: asrCacheStorageAccount.id,
+    
+    // Note: Disk resource IDs can be constructed using the subscription ID from Azure CLI
+    // Format: /subscriptions/{subscription-id}/resourceGroups/{source-rg}/providers/Microsoft.Compute/disks/{vm-name}-osdisk
+    // Format: /subscriptions/{subscription-id}/resourceGroups/{source-rg}/providers/Microsoft.Compute/disks/{vm-name}-datadisk-01
+};
+
+// Note: PowerShell script for manual ASR CMK configuration is available in enable-asr-cmk-replication.ps1
+// Use the cmkConfigurationHelpers export to get the required parameter values

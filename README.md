@@ -141,3 +141,110 @@ pulumi config set --secret pulumi-asr-cmk-poc:vmAdminPassword <your_secure_passw
 - The `encryptionsalt` is generated automatically when you first set a secret value
 - All team members need to configure their own `Pulumi.dev.yaml` file locally
 - CMK-specific configuration includes Key Vault and encryption key settings
+
+## 🏗️ Deployment
+
+### Step 1: Deploy Infrastructure with Pulumi
+
+After configuring your Pulumi settings, deploy the infrastructure:
+
+```bash
+# Install dependencies
+npm install
+
+# Deploy the infrastructure
+pulumi up
+```
+
+This will create:
+- **Source and Target Resource Groups** with networking (VNets, subnets)
+- **Key Vaults** with encryption keys in both regions
+- **Disk Encryption Sets (DES)** for CMK encryption
+- **Source Virtual Machine** with CMK-encrypted disks
+- **Recovery Services Vault** with ASR configuration
+- **ASR Fabrics, Protection Containers, and Mappings**
+
+### Step 2: Enable ASR Replication with CMK (Azure Portal)
+
+⚠️ **Important**: Due to PowerShell cmdlet limitations with CMK parameter combinations, ASR replication must be enabled manually through the Azure Portal.
+
+#### Azure Portal Steps:
+
+1. **Navigate to Recovery Services Vault**
+   - Go to Azure Portal → Resource Groups → `cmkAsrPoc-recovery-rg`
+   - Click on the Recovery Services Vault: `cmkAsrPoc-rsv`
+
+2. **Start Replication Setup**
+   - In the vault, go to **Site Recovery** → **Replicated items**
+   - Click **"+ Enable replication"**
+
+3. **Configure Source Settings**
+   - **Source**: Select "Azure virtual machines"
+   - **Source location**: Choose your source region (e.g., `East US`)
+   - **Azure virtual machine deployment model**: Resource Manager
+   - **Source subscription**: Your subscription
+   - **Source resource group**: `cmkAsrPoc-source-rg`
+
+4. **Select Virtual Machines**
+   - Choose your source VM: `sourcevm-cmk`
+   - Click **Next**
+
+5. **Configure Target Settings**
+   - **Target location**: Your target region (e.g., `West US`)
+   - **Target subscription**: Your subscription
+   - **Target resource group**: `cmkAsrPoc-target-rg`
+   - **Target virtual network**: `target-vnet`
+   - **Target subnet**: `target-subnet`
+
+6. **Configure Storage Encryption (Critical Step)**
+   - In **"Storage encryption settings"**, select **"Customer-managed key"**
+   - **Target Disk Encryption Set**: Choose `cmkAsrPoc-target-des`
+   - This ensures replicated disks use your CMK encryption
+
+7. **Configure Replication Settings**
+   - **Replication policy**: Select `asr-cmk-policy`
+   - **Cache storage account**: Select `asrcmkasrpoccache`
+   - **Multi-VM consistency**: Enable if desired
+
+8. **Review and Enable**
+   - Review all settings, especially the CMK encryption configuration
+   - Click **"Enable replication"**
+
+#### Verification Steps:
+
+After enabling replication:
+
+1. **Monitor Initial Replication**
+   - Go to **Site Recovery** → **Replicated items**
+   - Check the status of `sourcevm-cmk`
+   - Initial replication may take 30-60 minutes
+
+2. **Verify CMK Encryption**
+   - Once replication starts, verify target disks use CMK
+   - Check that the target DES (`cmkAsrPoc-target-des`) is properly applied
+
+3. **Test Failover (Optional)**
+   - After initial replication completes
+   - Perform a test failover to validate the setup
+   - Verify failed-over VM uses CMK encryption
+
+## 📚 Reference Documentation
+
+- [Azure Site Recovery with CMK](https://learn.microsoft.com/en-us/azure/site-recovery/azure-to-azure-how-to-enable-replication-cmk-disks)
+- [Azure Disk Encryption Sets](https://docs.microsoft.com/en-us/azure/virtual-machines/disk-encryption)
+- [Azure Key Vault for CMK](https://docs.microsoft.com/en-us/azure/key-vault/general/customer-managed-keys)
+
+## 🧹 Cleanup
+
+To remove all resources:
+
+```bash
+# Destroy Pulumi infrastructure
+pulumi destroy
+
+# Optionally remove Pulumi backend resources
+# (Only if you no longer need the state backend)
+az group delete --name pulumi-state-cmk-rg --yes
+```
+
+**Note**: Ensure ASR replication is disabled before destroying resources to avoid dependency issues.
