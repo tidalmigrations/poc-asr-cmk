@@ -1,5 +1,5 @@
 {
-    "name": "poc-asr-cmk",
+    "name": "pulumi-asr-cmk-poc",
     "main": "index.ts",
     "devDependencies": {
         "@types/node": "^18",

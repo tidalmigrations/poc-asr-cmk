@@ -1,4 +1,5 @@
 /bin/
 /node_modules/
-.env
+Pulumi.dev.yaml
 /plans/
+.env
