@@ -401,6 +401,7 @@ const sourceVm = new compute.VirtualMachine("sourceVm", {
             name: `${sourceVmName}-osdisk`,
             createOption: "FromImage",
             diskSizeGB: 30,
+            deleteOption: "Delete",
             managedDisk: {
                 storageAccountType: "Standard_LRS",
                 diskEncryptionSet: {
@@ -413,6 +414,7 @@ const sourceVm = new compute.VirtualMachine("sourceVm", {
             createOption: "Empty",
             diskSizeGB: 32,
             lun: 0,
+            deleteOption: "Delete",
             managedDisk: {
                 storageAccountType: "Standard_LRS",
                 diskEncryptionSet: {
