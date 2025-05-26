@@ -351,6 +351,8 @@ const asrReplicationPolicy = new recoveryservices.ReplicationPolicy("asrReplicat
             recoveryPointHistory: 1440, // 24 hours * 60 minutes
         },
     },
+}, {
+    deleteBeforeReplace: true,
 });
 
 // =============================================================================
@@ -455,7 +457,37 @@ export const sourceVmDataDiskName = pulumi.interpolate`${sourceVmName}-datadisk-
 // Phase 5: ASR Configuration for CMK-Encrypted VM Replication (Azure-to-Azure)
 // =============================================================================
 
-// 16. Create ASR Fabric (Azure) - Source Fabric
+// 16. First, create cleanup command that will handle existing ASR resources
+const cleanupExistingAsrResources = new command.local.Command("cleanupExistingAsrResources", {
+    create: "echo 'ASR cleanup command created - will clean up existing resources during destroy'",
+    delete: pulumi.interpolate`
+        echo "Cleaning up existing ASR resources..."
+        
+        # Remove any existing protected items
+        PROTECTED_ITEMS=$(az site-recovery protected-item list --vault-name ${recoveryServicesVault.name} --resource-group ${recoveryResourceGroup.name} --fabric-name azure-${location} --protection-container-name asr-a2a-default-${location}-container --query "[].name" -o tsv 2>/dev/null || true)
+        if [ ! -z "$PROTECTED_ITEMS" ]; then
+            for item in $PROTECTED_ITEMS; do
+                echo "Removing protected item: $item"
+                az site-recovery protected-item remove --vault-name ${recoveryServicesVault.name} --resource-group ${recoveryResourceGroup.name} --fabric-name azure-${location} --protection-container-name asr-a2a-default-${location}-container --name "$item" --yes || true
+            done
+        fi
+        
+        # Remove protection container mappings
+        MAPPINGS=$(az site-recovery protection-container mapping list --vault-name ${recoveryServicesVault.name} --resource-group ${recoveryResourceGroup.name} --fabric-name azure-${location} --protection-container-name asr-a2a-default-${location}-container --query "[].name" -o tsv 2>/dev/null || true)
+        if [ ! -z "$MAPPINGS" ]; then
+            for mapping in $MAPPINGS; do
+                echo "Removing mapping: $mapping"
+                az site-recovery protection-container mapping remove --vault-name ${recoveryServicesVault.name} --resource-group ${recoveryResourceGroup.name} --fabric-name azure-${location} --protection-container-name asr-a2a-default-${location}-container --mapping-name "$mapping" || true
+            done
+        fi
+        
+        echo "ASR cleanup completed"
+    `,
+}, {
+    dependsOn: [recoveryServicesVault],
+});
+
+// 17. Create ASR Fabric (Azure) - Source Fabric
 const sourceFabric = new recoveryservices.ReplicationFabric("sourceFabric", {
     fabricName: `azure-${location}`,
     resourceGroupName: recoveryResourceGroup.name,
@@ -466,6 +498,9 @@ const sourceFabric = new recoveryservices.ReplicationFabric("sourceFabric", {
             location: location,
         },
     },
+}, {
+    deleteBeforeReplace: true,
+    dependsOn: [cleanupExistingAsrResources],
 });
 
 // Create ASR Fabric (Azure) - Target Fabric
@@ -479,6 +514,9 @@ const targetFabric = new recoveryservices.ReplicationFabric("targetFabric", {
             location: targetLocation,
         },
     },
+}, {
+    deleteBeforeReplace: true,
+    dependsOn: [cleanupExistingAsrResources],
 });
 
 // 17. Create Protection Containers using Azure CLI (since they're not available in Pulumi Azure Native)

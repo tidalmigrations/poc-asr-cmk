@@ -258,9 +258,11 @@ After enabling replication:
 
 To remove all resources:
 
-### Step 1: Clean up ASR Protected Items (if any exist)
+### Step 1: Clean up ASR Protected Items and Mappings (if any exist)
 
-If you encounter "Configuration settings couldn't be removed" error during destroy:
+If you encounter dependency errors during destroy (e.g., "cannot be deleted as it contains one or more protection container mappings"):
+
+#### Check and Remove Protected Items
 
 ```bash
 # Check for protected items
@@ -268,17 +270,51 @@ az site-recovery protected-item list \
   --vault-name "cmkAsrPoc-rsv" \
   --resource-group "cmkAsrPoc-recovery-rg" \
   --fabric-name "azure-eastus" \
-  --protection-container "asr-a2a-default-eastus-container" \
-  --output table
+  --protection-container-name "asr-a2a-default-eastus-container" \
+  --query "[].name" -o tsv
 
-# If protected items exist, force delete them (replace <ITEM_NAME> with actual name)
-az site-recovery protected-item delete \
+# If protected items exist, remove them (replace <ITEM_NAME> with actual name)
+az site-recovery protected-item remove \
   --vault-name "cmkAsrPoc-rsv" \
   --resource-group "cmkAsrPoc-recovery-rg" \
   --fabric-name "azure-eastus" \
-  --protection-container "asr-a2a-default-eastus-container" \
-  --name "<ITEM_NAME>"
+  --protection-container-name "asr-a2a-default-eastus-container" \
+  --name "<ITEM_NAME>" \
+  --yes
 ```
+
+#### Check and Remove Protection Container Mappings
+
+```bash
+# Check for protection container mappings
+az site-recovery protection-container mapping list \
+  --vault-name "cmkAsrPoc-rsv" \
+  --resource-group "cmkAsrPoc-recovery-rg" \
+  --fabric-name "azure-westus" \
+  --protection-container-name "asr-a2a-default-westus-container" \
+  --query "[].name" -o tsv
+
+# If mappings exist, remove them (replace <MAPPING_NAME> with actual name)
+# Note: Mappings are typically in the target fabric (azure-westus), not source
+az site-recovery protection-container mapping remove \
+  --vault-name "cmkAsrPoc-rsv" \
+  --resource-group "cmkAsrPoc-recovery-rg" \
+  --fabric-name "azure-westus" \
+  --protection-container-name "asr-a2a-default-westus-container" \
+  --mapping-name "<MAPPING_NAME>"
+```
+
+#### Common Mapping Names
+
+If you used the Azure Portal to enable replication, the mapping name is typically:
+- `westus-eastus-asr-cmk-policy` (for westus → eastus replication)
+- `eastus-westus-asr-cmk-policy` (for eastus → westus replication)
+
+#### Troubleshooting Tips
+
+- **Check both fabrics**: Mappings can be in either source or target fabric
+- **Use JSON output for details**: Add `-o json` to see full mapping information
+- **Order matters**: Remove protected items first, then mappings, then containers
 
 ### Step 2: Destroy Pulumi Infrastructure
 
