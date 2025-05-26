@@ -219,14 +219,28 @@ After enabling replication:
    - Check the status of `sourcevm-cmk`
    - Initial replication may take 30-60 minutes
 
-2. **Verify CMK Encryption**
-   - Once replication starts, verify target disks use CMK
-   - Check that the target DES (`cmkAsrPoc-target-des`) is properly applied
+2. **Verify Source VM CMK Encryption**
+   - Navigate to **Virtual machines** → `sourcevm-cmk`
+   - Go to **Disks** section
+   - Verify both OS and data disks show **"SSE with customer-managed key"**
+   - Click on **"SSE with customer-managed key"** link to verify it shows the correct DES: `cmkAsrPoc-source-des`
 
-3. **Test Failover (Optional)**
-   - After initial replication completes
-   - Perform a test failover to validate the setup
-   - Verify failed-over VM uses CMK encryption
+3. **Verify Target CMK Configuration**
+   - Once replication starts, check target disk encryption settings
+   - In ASR replication settings, verify target DES (`cmkAsrPoc-target-des`) is properly applied
+   - Monitor replication progress in **Site Recovery** → **Replicated items**
+
+4. **Test Failover (Optional)**
+   - After initial replication completes (status shows "Protected")
+   - Perform a test failover to validate the setup:
+     - Go to **Site Recovery** → **Replicated items** → `sourcevm-cmk`
+     - Click **Test failover**
+     - Select a recovery point and target network
+     - After failover completes, verify the test VM disk encryption:
+       - Navigate to the test VM → **Disks**
+       - Verify disks show **"SSE with customer-managed key"**
+       - Click on **"SSE with customer-managed key"** to confirm it shows `cmkAsrPoc-target-des`
+   - **Important**: Clean up test failover after verification
 
 ## 📚 Reference Documentation
 
