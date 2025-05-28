@@ -355,3 +355,7 @@ az group delete --name pulumi-state-cmk-rg --yes
 ```
 
 **Note**: Always disable ASR replication before destroying resources to avoid dependency issues.
+
+---
+
+*Provided by Tidal <support@tidalcloud.com>*

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Provided by Tidal <support@tidalcloud.com>
+
+
 # Pulumi State Backend Setup Script for ASR CMK POC
 # Phase -1 / 0.2: Create Azure Resources for Pulumi State Backend
 # 

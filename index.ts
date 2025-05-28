@@ -1,3 +1,5 @@
+// Provided by Tidal <support@tidalcloud.com>
+
 import * as pulumi from "@pulumi/pulumi";
 import * as resources from "@pulumi/azure-native/resources";
 import * as network from "@pulumi/azure-native/network";

@@ -1,13 +1,14 @@
 {
-    "name": "pulumi-asr-cmk-poc",
-    "main": "index.ts",
-    "devDependencies": {
-        "@types/node": "^18",
-        "typescript": "^5.0.0"
-    },
-    "dependencies": {
-        "@pulumi/azure-native": "^2.0.0",
-        "@pulumi/command": "^1.0.5",
-        "@pulumi/pulumi": "^3.113.0"
-    }
+  "name": "pulumi-asr-cmk-poc",
+  "main": "index.ts",
+  "devDependencies": {
+    "@types/node": "^18",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@pulumi/azure-native": "^2.0.0",
+    "@pulumi/command": "^1.0.5",
+    "@pulumi/pulumi": "^3.113.0"
+  },
+  "_attribution": "Provided by Tidal <support@tidalcloud.com>"
 }

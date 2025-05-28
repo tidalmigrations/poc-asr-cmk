@@ -1,3 +1,5 @@
+# Provided by Tidal <support@tidalcloud.com>
+
 name: pulumi-asr-cmk-poc
 description: A minimal Azure Native TypeScript Pulumi program
 runtime:
